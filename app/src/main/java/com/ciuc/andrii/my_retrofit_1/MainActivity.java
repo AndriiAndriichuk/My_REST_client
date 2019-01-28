@@ -7,6 +7,9 @@ import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.View;
+import android.widget.CompoundButton;
+import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.ciuc.andrii.my_retrofit_1.adapters.RandomUserAdapter;
@@ -15,6 +18,11 @@ import com.ciuc.andrii.my_retrofit_1.interfaces.RandomUsersApi;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import io.reactivex.Observable;
+import io.reactivex.Observer;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Call;
@@ -26,22 +34,20 @@ import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory;
 
 public class MainActivity extends AppCompatActivity {
 
-    RecyclerView recyclerView;
+    private String BASE_URL = "https://randomuser.me/";
+    private double USERSNUMBER = 20;
 
-    RandomUserAdapter mAdapter = new RandomUserAdapter();
+    private RecyclerView recyclerView;
+    private Switch aSwitch ;
+    private TextView textView;
+    private ProgressDialog pd ;
 
-    Retrofit retrofit;
+    private RandomUserAdapter mAdapter;
+    private HttpLoggingInterceptor httpLoggingInterceptor;
+    private OkHttpClient okHttpClient;
+    private Gson gson;
 
-    Gson gson = new GsonBuilder().create();
 
-
-    HttpLoggingInterceptor httpLoggingInterceptor = new HttpLoggingInterceptor();
-
-    OkHttpClient okHttpClient;
-
-    ProgressDialog pd ;
-
-    double USERSNUMBER = 20;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,6 +57,14 @@ public class MainActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
+        aSwitch = findViewById(R.id.my_switch);
+        textView = findViewById(R.id.text_state);
+
+        mAdapter = new RandomUserAdapter();
+
+        gson = new GsonBuilder().create();
+
+        httpLoggingInterceptor = new HttpLoggingInterceptor();
         httpLoggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
 
         okHttpClient = new OkHttpClient()
@@ -63,35 +77,22 @@ public class MainActivity extends AppCompatActivity {
         pd.setMessage("Завантаження");
 
 
-        createRetrofit();
-       /* Observable<MyRandomUser> randomUsersCall = randomUsersApi.getRandomUsers("10.0");
+        callWithRetrofit();
 
 
-        randomUsersCall
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Observer<MyRandomUser>() {
-                    @Override
-                    public void onSubscribe(Disposable d) {
-                        Log.i("test2","subscribe");
-                    }
+        aSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    textView.setText("Java RX");
+                    callWithRX();
+                }else {
+                    textView.setText("Retrofit");
+                    callWithRetrofit();
+                }
 
-                    @Override
-                    public void onNext(MyRandomUser myRandomUser) {
-                        Log.i("test2",myRandomUser.getResults().toString());
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        Log.i("test2","error" + e.getMessage());
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        Log.i("test2","complete");
-                    }
-                }) ;*/
-
+            }
+        });
 
 
 
@@ -106,22 +107,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    private void createRetrofit(){
+    private void callWithRetrofit(){
         pd.show();
 
-        retrofit = new Retrofit.Builder()
-                .baseUrl("https://randomuser.me/")
-                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-                .addConverterFactory(GsonConverterFactory.create(gson))
-                .client(okHttpClient)
-                .build();
-
-
-
-        RandomUsersApi randomUsersApi = retrofit.create(RandomUsersApi.class);
-
-
-        Call<MyRandomUser> randomUsersCall = randomUsersApi.getRandomUsers(USERSNUMBER);
+        Call<MyRandomUser> randomUsersCall = getRandomUsersApi(getRetrofit(BASE_URL, okHttpClient, gson)).getRandomUsers(USERSNUMBER);
 
         randomUsersCall.enqueue(new Callback<MyRandomUser>() {
             @Override
@@ -136,11 +125,56 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(Call<MyRandomUser> call, Throwable t) {
-                /*Toast.makeText(MainActivity.this,"Помилка з'єднання" + t.getMessage(),Toast.LENGTH_LONG).show();*/
-
-                createRetrofit();
+                callWithRetrofit();
             }
         });
     }
+    
+
+    private void callWithRX(){
+        pd.show();
+
+        Observable<MyRandomUser> randomUsersCall = getRandomUsersApi(getRetrofit(BASE_URL, okHttpClient, gson)).getRandomUsersRX(USERSNUMBER);
+
+        randomUsersCall
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<MyRandomUser>() {
+                    @Override
+                    public void onSubscribe(Disposable d) { }
+
+                    @Override
+                    public void onNext(MyRandomUser myRandomUser) {
+
+                        mAdapter.setItems(myRandomUser.getResults());
+                        recyclerView.setAdapter(mAdapter);
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        callWithRX();
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        pd.cancel();
+                    }
+                }) ;
+    }
+
+
+    private Retrofit getRetrofit(String baseUrl, OkHttpClient client, Gson mGson){
+        return new Retrofit.Builder()
+                .baseUrl(baseUrl)
+                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+                .addConverterFactory(GsonConverterFactory.create(mGson))
+                .client(client)
+                .build();
+    }
+
+    private RandomUsersApi getRandomUsersApi(Retrofit retrofit){
+        return retrofit.create(RandomUsersApi.class);
+    }
+
 
 }

@@ -6,6 +6,28 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity"
     android:orientation="vertical">
+   <RelativeLayout
+       android:layout_width="match_parent"
+       android:layout_height="40dp">
+
+     <TextView
+         android:layout_width="match_parent"
+         android:layout_height="match_parent"
+         android:layout_weight="1"
+         android:id="@+id/text_state"
+         android:hint="state"
+         android:text="Retrofit"
+         android:textColor="@android:color/black"
+         android:textSize="22dp"/>
+
+      <Switch
+          android:id="@+id/my_switch"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:checked="false"
+          android:layout_weight="4"/>
+
+   </RelativeLayout>
 
    <android.support.v7.widget.RecyclerView
        android:layout_width="match_parent"

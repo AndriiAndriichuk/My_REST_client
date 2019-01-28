@@ -2,6 +2,7 @@ package com.ciuc.andrii.my_retrofit_1.interfaces;
 
 import com.ciuc.andrii.my_retrofit_1.pojo.MyRandomUser;
 
+import io.reactivex.Observable;
 import retrofit2.Call;
 import retrofit2.http.GET;
 import retrofit2.http.Query;
@@ -14,4 +15,7 @@ public interface RandomUsersApi {
 
     @GET("api")
     Call<MyRandomUser> getRandomUsers(@Query("results") double size);
+
+    @GET("api")
+    Observable<MyRandomUser> getRandomUsersRX(@Query("results") double size);
 }
